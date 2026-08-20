@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: stomacare-rag-api
+    runtime: docker
+    rootDir: rag-api
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: RAG_API_SECRET
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://stomacare-medical.vercel.app

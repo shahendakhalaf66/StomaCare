@@ -1,0 +1,17 @@
+﻿.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+
+rag-api/.env
+whatsapp-engine/.env
+whatsapp-engine/sessions/
+whatsapp-engine/node_modules/
+
+*.log
+.DS_Store

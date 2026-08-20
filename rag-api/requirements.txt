@@ -1,0 +1,13 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+# The bundled chroma_db_v1 was created with the 0.5 storage format.
+chromadb==0.5.23
+faiss-cpu==1.9.0.post1
+sentence-transformers==3.3.1
+transformers==4.46.3
+tokenizers==0.20.3
+google-genai==1.7.0
+pydantic==2.10.5
+websockets<15.1.0,>=13.0.0
+numpy<2.0,>=1.25.0
+scipy==1.14.1

@@ -1,0 +1,466 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model DemoLead {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  phone     String
+  createdAt DateTime @default(now())
+
+  @@map("demolead")
+}
+
+model AgentSession {
+  id         String    @id @default(cuid())
+  agentId    String
+  businessId String
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  agent      User      @relation(fields: [agentId], references: [id], map: "AgentSession_agentId_fkey")
+
+  @@index([agentId, startedAt], map: "AgentSession_agentId_startedAt_idx")
+  @@index([businessId, startedAt], map: "AgentSession_businessId_startedAt_idx")
+  @@map("agentsession")
+}
+
+model AgentRating {
+  id             String       @id @default(cuid()) @map("id")
+  businessId     String
+  agentId        String
+  conversationId String
+  value          Int
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [agentId], references: [id], map: "AgentRating_agentId_fkey")
+  business       Business     @relation(fields: [businessId], references: [id], map: "AgentRating_businessId_fkey")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], map: "AgentRating_conversationId_fkey")
+
+  @@index([agentId], map: "AgentRating_agentId_idx")
+  @@index([businessId], map: "AgentRating_businessId_idx")
+  @@index([conversationId], map: "AgentRating_conversationId_fkey")
+  @@index([createdAt], map: "AgentRating_createdAt_idx")
+  @@map("agentrating")
+}
+
+model AiConfig {
+  id                 String   @id @default(cuid())
+  businessId         String   @unique(map: "AiConfig_businessId_key")
+  isEnabled          Boolean  @default(false)
+  apiKey             String   @db.Text
+  model              String   @default("gpt-4o-mini")
+  knowledgeBase      String   @db.LongText
+  maxHistoryMessages Int      @default(10)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  business           Business @relation(fields: [businessId], references: [id], map: "AiConfig_businessId_fkey")
+
+  @@map("aiconfig")
+}
+
+model Business {
+  id            String            @id @default(cuid())
+  name          String
+  email         String?           @unique(map: "Business_email_key")
+  password      String?
+  phone         String?
+  createdAt     DateTime          @default(now())
+  agentRatings  AgentRating[]
+  aiConfig      AiConfig?
+  channels      BusinessChannel[]
+  campaigns     Campaign[]
+  contacts      Contact[]
+  conversations Conversation[]
+  ratingConfig  RatingConfig?
+  routingConfig RoutingConfig?
+  templates     Template[]
+  users         User[]
+  queues        Queue[]
+  maxChannels   Int               @default(1)
+  apiKey        String?           @unique(map: "Business_apiKey_key")
+  crmStages     CrmStage[]
+  crmDeals      CrmDeal[]
+  automations          Automation[]
+  apiKeys              ApiKey[]
+  webhookSubscriptions WebhookSubscription[]
+  scheduledMessages    ScheduledMessage[]
+
+  @@map("business")
+}
+
+model BusinessChannel {
+  id            String         @id @default(cuid())
+  businessId    String
+  channelId     String
+  name          String
+  phone         String?
+  status        String         @default("disconnected")
+  platform      String         @default("whatsapp")
+  pageId        String?
+  pageAccessToken String?      @db.Text
+  wabaId        String?
+  createdAt     DateTime       @default(now())
+  queueId       String?
+  business      Business       @relation(fields: [businessId], references: [id], map: "BusinessChannel_businessId_fkey")
+  campaigns     Campaign[]
+  conversations Conversation[]
+  users         User[]
+  queue         Queue?         @relation(fields: [queueId], references: [id], map: "BusinessChannel_queueId_fkey")
+
+  @@index([businessId], map: "BusinessChannel_businessId_idx")
+  @@index([queueId], map: "BusinessChannel_queueId_idx")
+  @@map("businesschannel")
+}
+
+model Campaign {
+  id              String            @id @default(cuid())
+  businessId      String
+  channelId       String?
+  name            String
+  messageBody     String            @db.Text
+  status          String            @default("draft")
+  totalRecipients Int               @default(0)
+  sentCount       Int               @default(0)
+  failedCount     Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  business        Business          @relation(fields: [businessId], references: [id], map: "Campaign_businessId_fkey")
+  channel         BusinessChannel?  @relation(fields: [channelId], references: [id], map: "Campaign_channelId_fkey")
+  messages        CampaignMessage[]
+
+  @@index([businessId], map: "Campaign_businessId_idx")
+  @@index([channelId], map: "Campaign_channelId_fkey")
+  @@map("campaign")
+}
+
+model CampaignMessage {
+  id           String    @id @default(cuid())
+  campaignId   String
+  contactId    String
+  status       String    @default("pending")
+  errorMessage String?   @db.Text
+  sentAt       DateTime?
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade, map: "CampaignMessage_campaignId_fkey")
+  contact      Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade, map: "CampaignMessage_contactId_fkey")
+
+  @@index([campaignId], map: "CampaignMessage_campaignId_idx")
+  @@index([contactId], map: "CampaignMessage_contactId_idx")
+  @@map("campaignmessage")
+}
+
+model Contact {
+  id               String            @id @default(cuid())
+  businessId       String
+  phone            String            @db.Text
+  phoneHash        String?           @db.VarChar(64)
+  name             String?
+  email            String?
+  company          String?
+  notes            String?           @db.Text
+  tags             String?
+  source           String            @default("manual")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  campaignMessages CampaignMessage[]
+  business         Business          @relation(fields: [businessId], references: [id], map: "Contact_businessId_fkey")
+
+  // Use the hash for uniqueness to support exact-match lookups
+  @@unique([businessId, phoneHash], map: "Contact_businessId_phoneHash_key")
+  @@index([businessId], map: "Contact_businessId_idx")
+  @@map("contact")
+}
+
+model Conversation {
+  id               String           @id @default(cuid())
+  businessId       String
+  channelId        String?
+  customerPhone    String           @db.Text
+  customerPhoneHash String?         @db.VarChar(64)
+  customerName     String?
+  lastMessage      String?          @db.Text
+  lastMessageAt    DateTime?
+  unreadCount      Int              @default(0)
+  createdAt        DateTime         @default(now())
+  assignedTo       String?
+  assignedAt       DateTime?
+  lastAssignedTo   String?
+  status           String           @default("open")
+  label            String?
+  updatedAt        DateTime         @default(now()) @updatedAt
+  rating           Int?
+  waitingForRating Boolean          @default(false)
+  queueId          String?
+  agentRatings     AgentRating[]
+  assignedUser     User?            @relation(fields: [assignedTo], references: [id], map: "Conversation_assignedTo_fkey")
+  business         Business         @relation(fields: [businessId], references: [id], map: "Conversation_businessId_fkey")
+  channel          BusinessChannel? @relation(fields: [channelId], references: [id], map: "Conversation_channelId_fkey")
+  queue            Queue?           @relation(fields: [queueId], references: [id], map: "Conversation_queueId_fkey")
+  messages         InboxMessage[]
+  crmDeals         CrmDeal[]
+
+  @@index([assignedTo], map: "Conversation_assignedTo_fkey")
+  @@index([businessId], map: "Conversation_businessId_idx")
+  @@index([channelId], map: "Conversation_channelId_idx")
+  @@index([queueId], map: "Conversation_queueId_idx")
+  @@index([lastAssignedTo], map: "Conversation_lastAssignedTo_idx")
+  @@index([updatedAt], map: "Conversation_updatedAt_idx")
+  @@index([status], map: "Conversation_status_idx")
+  // Composite indexes for the inbox tab queries (businessId + status + lastMessageAt covers all tab filters)
+  @@index([businessId, status, lastMessageAt(sort: Desc)], map: "Conversation_business_status_lastMsg_idx")
+  @@index([businessId, assignedTo, status], map: "Conversation_business_assignedTo_status_idx")
+  @@index([businessId, channelId, status], map: "Conversation_business_channel_status_idx")
+  @@map("conversation")
+}
+
+model Queue {
+  id            String            @id @default(cuid())
+  businessId    String
+  name          String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  business      Business          @relation(fields: [businessId], references: [id], map: "Queue_businessId_fkey")
+  channels      BusinessChannel[]
+  conversations Conversation[]
+  users         User[]
+
+  @@index([businessId], map: "Queue_businessId_idx")
+  @@map("queue")
+}
+
+model InboxMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  body           String       @db.Text
+  fromMe         Boolean      @default(false)
+  senderPhone    String       @db.Text
+  senderPhoneHash String?     @db.VarChar(64)
+  status         String       @default("sent")
+  timestamp      DateTime     @default(now())
+  waMessageId    String?
+  mediaType      String?
+  mediaUrl       String?      @db.LongText
+  isInternal     Boolean      @default(false)
+  isPinned       Boolean      @default(false)
+  quotedMessageId String?
+  quotedMessageBody String?    @db.Text
+  reaction       String?
+  isDeleted      Boolean      @default(false)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], map: "InboxMessage_conversationId_fkey")
+
+  @@index([conversationId], map: "InboxMessage_conversationId_idx")
+  @@index([timestamp], map: "InboxMessage_timestamp_idx")
+  @@index([waMessageId], map: "InboxMessage_waMessageId_idx")
+  @@map("inboxmessage")
+}
+
+model RatingConfig {
+  id             String   @id @default(cuid())
+  businessId     String   @unique(map: "RatingConfig_businessId_key")
+  isEnabled      Boolean  @default(false)
+  label0         String   @default("سيئة جدا")
+  label1         String   @default("سيئة ?")
+  label2         String   @default("متوسطة")
+  label3         String   @default("? جيدة")
+  label4         String   @default("جيد جدا✨")
+  label5         String   @default("ممتازة ?")
+  surveyMessage  String?
+  successMessage String?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  business       Business @relation(fields: [businessId], references: [id], map: "RatingConfig_businessId_fkey")
+
+  @@map("ratingconfig")
+}
+
+model RoutingConfig {
+  id                 String   @id @default(cuid())
+  businessId         String   @unique(map: "RoutingConfig_businessId_key")
+  autoAssignEnabled  Boolean  @default(false)
+  maxConcurrentChats Int      @default(5)
+  business           Business @relation(fields: [businessId], references: [id], map: "RoutingConfig_businessId_fkey")
+
+  @@map("routingconfig")
+}
+
+model Template {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], map: "Template_businessId_fkey")
+
+  @@index([businessId], map: "Template_businessId_idx")
+  @@map("template")
+}
+
+model User {
+  id             String           @id @default(cuid())
+  businessId     String
+  name           String
+  email          String           @unique(map: "User_email_key")
+  password       String
+  role           String           @default("AGENT")
+  createdAt      DateTime         @default(now())
+  isOnline       Boolean          @default(false)
+  shiftEnd       DateTime?
+  shiftStart     DateTime?
+  lastAssignedAt DateTime?
+  channelId      String?
+  queueId        String?
+  agentRatings   AgentRating[]
+  agentSessions  AgentSession[]
+  conversations  Conversation[]
+  business       Business         @relation(fields: [businessId], references: [id], map: "User_businessId_fkey")
+  channel        BusinessChannel? @relation(fields: [channelId], references: [id])
+  queue          Queue?           @relation(fields: [queueId], references: [id])
+
+  @@index([businessId], map: "User_businessId_idx")
+  @@index([channelId])
+  @@index([queueId])
+  @@map("user")
+}
+
+model SuperAdmin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+
+  @@map("superadmin")
+}
+
+model CrmStage {
+  id         String    @id @default(cuid())
+  businessId String
+  name       String
+  color      String    @default("#6b7280")
+  orderIndex Int       @default(0)
+  createdAt  DateTime  @default(now())
+  business   Business  @relation(fields: [businessId], references: [id], map: "CrmStage_businessId_fkey")
+  deals      CrmDeal[]
+
+  @@index([businessId, orderIndex], map: "CrmStage_businessId_orderIndex_idx")
+  @@map("crmstage")
+}
+
+model CrmDeal {
+  id             String        @id @default(cuid())
+  businessId     String
+  stageId        String
+  conversationId String?
+  title          String
+  value          Float         @default(0)
+  orderIndex     Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  business       Business      @relation(fields: [businessId], references: [id], map: "CrmDeal_businessId_fkey")
+  stage          CrmStage      @relation(fields: [stageId], references: [id], onDelete: Cascade, map: "CrmDeal_stageId_fkey")
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], map: "CrmDeal_conversationId_fkey")
+
+  @@index([businessId], map: "CrmDeal_businessId_idx")
+  @@index([stageId, orderIndex], map: "CrmDeal_stageId_orderIndex_idx")
+  @@index([conversationId], map: "CrmDeal_conversationId_idx")
+  @@map("crmdeal")
+}
+
+model Automation {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  name          String
+  triggerEvent  String
+  triggerConfig Json?
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  business      Business         @relation(fields: [workspaceId], references: [id], map: "Automation_workspaceId_fkey")
+  steps         AutomationStep[]
+
+  @@index([workspaceId, triggerEvent, isActive], map: "Automation_workspace_trigger_active_idx")
+  @@map("automation")
+}
+
+model AutomationStep {
+  id           String     @id @default(cuid())
+  automationId String
+  stepOrder    Int
+  stepType     String     // 'action' | 'delay' | 'condition'
+  payload      Json
+  createdAt    DateTime   @default(now())
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade, map: "AutomationStep_automationId_fkey")
+
+  @@index([automationId, stepOrder], map: "AutomationStep_automationId_stepOrder_idx")
+  @@map("automation_step")
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  businessId String
+  keyPrefix  String
+  hashedKey  String    @unique
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("apikey")
+}
+
+model WebhookSubscription {
+  id         String   @id @default(cuid())
+  businessId String
+  url        String   @db.Text
+  events     Json
+  isActive   Boolean  @default(true)
+  secret     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("webhooksubscription")
+}
+
+model ScheduledMessage {
+  id             String    @id @default(cuid())
+  businessId     String
+  channelId      String
+  message        String    @db.Text
+  scheduledAt    DateTime
+  status         String    @default("pending")
+  targetType     String
+  targetValue    String    @db.Text
+  recipientCount Int       @default(0)
+  sentAt         DateTime?
+  errorMsg       String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, status])
+  @@index([scheduledAt, status])
+  @@map("scheduledmessage")
+}
+
+// Stores Baileys WhatsApp auth state in MySQL so sessions survive container restarts
+// and can be backed up with the database.  Each row is one auth key file.
+model WhatsAppAuthState {
+  id        String   @id @default(cuid())
+  channelId String
+  keyName   String
+  keyData   Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([channelId, keyName])
+  @@index([channelId])
+  @@map("whatsapp_auth_state")
+}
